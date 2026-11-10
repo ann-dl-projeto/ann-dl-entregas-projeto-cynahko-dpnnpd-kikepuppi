@@ -28,7 +28,7 @@ corrige pode abrir uma página direto, sem passar por aqui.
 | # | Entrega | Página |
 |---|---------|--------|
 | 1 | EDA | [EDA](eda/index.md) |
-| 2 | Regressão | em breve |
+| 2 | Regressão | [Regressão](regression/index.md) |
 | 3 | Generativo | em breve |
 
 As datas e os pesos de cada entrega estão no [overview](https://insper.github.io/ann-dl/){:target='_blank'}

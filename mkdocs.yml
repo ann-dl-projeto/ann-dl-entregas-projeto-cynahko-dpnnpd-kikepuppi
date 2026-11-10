@@ -148,7 +148,7 @@ nav:
     - projects/index.md
     - 1. EDA: projects/eda/index.md
     # Descomentar quando a página existir:
-    # - 2. Regressão: projects/regression/index.md
+    - 2. Regressão: projects/regression/index.md
     # - 3. Generativo: projects/generative/index.md
 
   - Enunciados da disciplina ↗: https://insper.github.io/ann-dl/
