@@ -202,11 +202,11 @@ da busca: no treino, com early stopping na validação. Fizemos isso com as seed
 baselines são os mesmos da seção 1. O teste foi usado só aqui, uma vez, e nenhuma escolha das seções
 anteriores dependeu dele.
 
-| Seed | MAE (₹) | RMSE (₹) | R² |
-|-----:|--------:|---------:|---:|
-| 42 | 86.076 | 175.774 | 0,875 |
-| 43 | 83.991 | 174.414 | 0,877 |
-| 44 | 85.108 | 165.041 | 0,889 |
+| Seed | Parou na época | Melhor época | MAE (₹) | RMSE (₹) | R² |
+|-----:|---------------:|-------------:|--------:|---------:|---:|
+| 42 | 227 | 197 | 86.076 | 175.774 | 0,875 |
+| 43 | 226 | 196 | 83.991 | 174.414 | 0,877 |
+| 44 | 215 | 185 | 85.108 | 165.041 | 0,889 |
 
 | Modelo | MAE (₹) | RMSE (₹) | R² |
 |--------|--------:|---------:|---:|
@@ -333,3 +333,48 @@ Duas categóricas que separavam bem o preço na EDA quase não importam para a r
 por quê. `transmission` (2,2× entre medianas) importa pouco porque boa parte do efeito é potência, que
 a rede já vê em `max_power`. `seller_type` (1,6×) não importa nada porque as revendas Trustmark só
 aceitam carros novos, e a rede já vê a idade em `year`.
+
+## 7. Conclusão
+
+**A rede valeu a pena?** Em parte. Ela é melhor que o Ridge nas três métricas do teste: MAE 11,0%
+menor, RMSE de ₹171.743 contra ₹195.230 e R² de 0,880 contra 0,845. O ganho é estável, com desvio de
+₹1.043 entre seeds. Mesmo assim, não atingiu os 15% que fixamos antes de treinar. A rede aprendeu
+interações que o modelo linear não vê, mas o ganho é modesto para um modelo mais caro de treinar,
+ajustar e explicar. Se a prioridade for simplicidade, o Ridge fica a 11% de distância.
+
+**Limitações:**
+
+- Os anúncios não têm data. O split é aleatório, então não sabemos como a rede se sairia com
+  anúncios futuros, com outra inflação e outro mercado.
+- O preço é o pedido no anúncio, não o de venda.
+- Marcas com menos de 20 carros no treino viram uma única categoria, e a rede não distingue uma
+  Land Rover de um carro comum. Isso explica os piores erros.
+- Sem a coluna `name`, a rede não separa modelos diferentes da mesma marca.
+- Escolhemos a configuração entre 12 olhando a validação, e o resultado lá (13,0%) foi otimista em
+  relação ao teste (11,0%).
+
+**Quem é afetado por um erro.** Num carro comum, até ₹5 lakh, o erro típico fica entre 13% e 18%,
+algo como ₹33 a 66 mil. Nos carros de luxo, o erro chega a milhões de rúpias, e o mais comum é
+*subestimar*: dos 10 piores casos, 7 tiveram preço previsto abaixo do real. Um vendedor que confiasse
+na rede anunciaria abaixo do valor e perderia dinheiro. Um comprador de carro popular é menos afetado
+em rúpias, mas sente mais o erro relativo, que é maior nos carros baratos.
+
+**Próximos passos:**
+
+- Agrupar as marcas raras por segmento (luxo, popular) em vez de mandá-las todas para `infrequent`.
+- Recuperar o modelo a partir de `name`, por exemplo com as duas primeiras palavras ou um embedding.
+- Tirar a média das redes das 3 seeds (ensemble), que costuma reduzir o erro sem mudar a arquitetura.
+- Treinar a versão final com treino + validação juntos, fixando o número de épocas.
+
+### Tabela-resumo
+
+| # | Item | Valor |
+|--:|------|-------|
+| 1 | Dataset, tarefa, alvo e métrica principal | CarDekho `Car details v3.csv`, regressão, `selling_price` (treinado em `log`), MAE em ₹ |
+| 2 | Linhas de treino, validação e teste | 4.420 / 1.105 / 1.382 |
+| 3 | Melhor baseline e sua métrica no teste | Ridge, MAE de ₹95.567 |
+| 4 | Rede escolhida | MLP 40 → 64 → 32 → 1, ReLU, 4.737 parâmetros, dropout 0,1 + weight decay 1e-4 |
+| 5 | Otimizador, LR, batch e época de parada | Adam, 0,003, 64, parou na época 227 (melhor época 197, seed 42) |
+| 6 | Métrica principal no teste, média ± desvio (3 seeds) | MAE de ₹85.058 ± 1.043 |
+| 7 | Critério de sucesso atingido? | Não: MAE 11,0% menor que o do Ridge, e o critério era 15% |
+| 8 | Subgrupo com maior erro e seu valor | Câmbio automático, MAE de ₹284.729 |

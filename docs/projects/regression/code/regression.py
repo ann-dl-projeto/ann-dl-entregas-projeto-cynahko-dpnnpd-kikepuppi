@@ -200,7 +200,8 @@ redes_finais = {}
 for seed in [42, 43, 44]:
     torch.manual_seed(seed)
     redes_finais[seed] = criar_rede(Z_tr.shape[1], (64, 32), dropout=0.1)
-    treinar(redes_finais[seed], perda, lr=3e-3, weight_decay=1e-4)
+    hist = treinar(redes_finais[seed], perda, lr=3e-3, weight_decay=1e-4)
+    print(f"seed {seed}: parou na época {len(hist['validação'])}, melhor época {int(np.argmin(hist['validação'])) + 1}")
 por_seed = pd.DataFrame({seed: metricas(y_te, prever(r, Z_te)) for seed, r in redes_finais.items()}).T
 print("rede, por seed:\n", por_seed.round(3))
 teste["Rede (média de 3 seeds)"] = por_seed.mean().to_dict()
