@@ -65,7 +65,7 @@ R² = 0,875 no log do preço.
 ## Status
 
 - [x] 1. EDA
-- [ ] 2. Classificação ou Regressão
+- [x] 2. Classificação ou Regressão
 - [ ] 3. Generativo
 
 ## Registro de decisões
