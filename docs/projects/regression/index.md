@@ -104,3 +104,41 @@ relativo. Mesmo assim sobram outliers: nos resíduos do Ridge no treino, a media
 de 9. Com MSE, esses poucos casos dominariam o gradiente. A Huber é quadrática para erros até
 `delta` e linear acima dele. Com `delta=0.5`, só 4,7% das linhas caem na parte linear: o resto é
 tratado como no MSE e os outliers perdem peso.
+
+## 3. Treino
+
+O treino fica na função `treinar` em `code/regression.py`.
+
+| Escolha | Valor | Por quê |
+|---------|-------|---------|
+| Otimizador | Adam | Ajusta um passo próprio para cada peso, a partir da média e da variância dos gradientes recentes. É o padrão para MLP e funciona bem sem ajuste fino |
+| Learning rate | 0,001 | Padrão do Adam. Grande demais faz a loss oscilar; pequeno demais deixa o treino lento |
+| Batch | 64 | 4.420 linhas viram cerca de 70 atualizações por época. O ruído de um lote pequeno ajuda a rede a não decorar o treino |
+| Épocas | até 500 | É só um teto. Quem decide a parada é o early stopping |
+| Early stopping | paciência 30 | A cada época medimos a loss na validação. Se ela não melhora por 30 épocas seguidas, o treino para e a rede volta aos pesos da melhor época |
+
+O treino parou na época 114, e a melhor época foi a 84. Nela, a loss Huber foi de 0,0175 no treino
+e 0,0254 na validação.
+
+![Figura 1](figures/fig01-curvas.png)
+
+A Figura 1 mostra três fases:
+
+- **Épocas 1 a ~15:** as duas curvas caem juntas e rápido. A rede aprende o padrão geral do preço.
+- **Épocas ~15 a 84:** a validação quase não melhora mais, enquanto o treino continua descendo devagar.
+  A distância entre as curvas cresce: é o começo do overfitting.
+- **Depois da 84:** a validação não melhora por 30 épocas e o treino para.
+
+Os picos nas duas curvas, como os das épocas 65 e 100, são o ruído normal dos mini-batches. Como
+eles aparecem juntos no treino e na validação, não indicam problema.
+
+Na validação, a rede já fica à frente do Ridge:
+
+| Modelo | MAE (₹) | RMSE (₹) | R² |
+|--------|--------:|---------:|---:|
+| Dummy (mediana) | 278.744 | 523.161 | −0,054 |
+| Ridge | 92.824 | 192.640 | 0,857 |
+| Rede, sem regularização | 84.318 | 178.861 | 0,877 |
+
+O MAE é 9,2% menor que o do Ridge, ainda abaixo dos 15% do critério. A seção 4 testa regularização e
+outras configurações para tentar fechar essa diferença.
