@@ -234,3 +234,102 @@ A Figura 3 mostra o mesmo erro em rúpias. Até ₹1 milhão, os resíduos ficam
 zero. Acima disso, eles se abrem: um erro de 20% num carro de ₹20 lakh vale ₹4 lakh. Os maiores erros
 são positivos, entre ₹1 e ₹3 milhões previstos, e são carros que a rede subestimou, com um caso real
 quase ₹3 milhões acima da previsão. São esses poucos carros caros que puxam o MAE e o RMSE.
+
+## 6. Análise de erro
+
+Usamos a rede da seed 42, a mesma das Figuras 2 e 3, no teste. Para cada grupo, mostramos o MAE em ₹
+e o erro percentual mediano (`|real − previsto| / real`), que mede o erro relativo.
+
+**Por faixa de preço real** (quintis do teste):
+
+| Faixa | Preço real (₹) | Carros | MAE (₹) | Erro % mediano |
+|-------|----------------|-------:|--------:|---------------:|
+| 1 (mais baratos) | até 210 mil | 280 | 33.305 | 18,1% |
+| 2 | 210 a 340 mil | 275 | 48.466 | 14,9% |
+| 3 | 340 a 500 mil | 301 | 66.220 | 13,0% |
+| 4 | 500 a 700 mil | 271 | 78.149 | 10,9% |
+| 5 (mais caros) | 700 mil a 6 milhões | 255 | 216.442 | 12,5% |
+
+![Figura 4](figures/fig04-erro-faixa.png)
+
+O MAE em rúpias cresce com o preço, e a faixa mais cara tem quase 3 vezes o erro da faixa 4
+(Figura 4). O erro relativo, porém, é *maior* nos carros baratos (18,1%). A rede erra mais rúpias nos
+carros caros e mais porcentagem nos baratos. Isso é esperado, porque ela foi treinada no log do preço,
+que pune o erro relativo, não o absoluto.
+
+**Por categoria:**
+
+| Grupo | Carros | MAE (₹) | Erro % mediano |
+|-------|-------:|--------:|---------------:|
+| Automatic | 121 | 284.729 | 15,2% |
+| Manual | 1.261 | 67.014 | 13,4% |
+| Dealer | 126 | 183.507 | 10,9% |
+| Individual | 1.254 | 76.337 | 13,9% |
+| Diesel | 746 | 111.637 | 13,6% |
+| Petrol | 622 | 56.300 | 13,3% |
+
+Entre as 8 marcas mais comuns, o MAE vai de ₹50.682 (Maruti, 438 carros) a ₹168.284 (Toyota, 77
+carros). CNG, LPG e Trustmark Dealer têm 9, 5 e 2 carros no teste, poucos demais para concluir algo.
+
+O subgrupo com maior erro é o dos **automáticos: MAE de ₹284.729**, 4,2 vezes o dos manuais. Na EDA, os
+automáticos eram mais caros e 3 vezes mais heterogêneos em potência, indo de hatch a SUV de luxo. Em
+porcentagem, porém, o erro deles (15,2%) fica perto do dos manuais (13,4%). A maior parte da diferença
+em rúpias vem do preço mais alto, não de a rede entender pior esses carros.
+
+**Os 10 piores casos:**
+
+| Marca | Ano | km | Combustível | Câmbio | Vendedor | Potência (bhp) | Real (₹) | Previsto (₹) | Erro |
+|-------|----:|---:|-------------|--------|----------|---------------:|---------:|-------------:|-----:|
+| Land Rover | 2019 | 21.000 | Diesel | Automatic | Dealer | 148 | 4.500.000 | 1.659.462 | 63% |
+| Lexus | 2019 | 20.000 | Petrol | Automatic | Dealer | 215 | 5.150.000 | 3.308.889 | 36% |
+| Toyota | 2014 | 60.000 | Diesel | Automatic | Individual | 170 | 3.500.000 | 1.778.702 | 49% |
+| Skoda | 2018 | 40.000 | Diesel | Automatic | Individual | 148 | 2.800.000 | 1.507.406 | 46% |
+| Mercedes-Benz | 2016 | 70.000 | Diesel | Automatic | Dealer | 224 | 4.090.000 | 2.892.744 | 29% |
+| BMW | 2018 | 22.000 | Diesel | Automatic | Individual | 261 | 5.500.000 | 6.690.734 | 22% |
+| BMW | 2018 | 27.000 | Diesel | Automatic | Dealer | 261 | 6.000.000 | 7.151.258 | 19% |
+| BMW | 2017 | 27.000 | Diesel | Automatic | Dealer | ausente | 2.150.000 | 1.104.366 | 49% |
+| BMW | 2012 | 96.000 | Diesel | Automatic | Dealer | 190 | 925.000 | 1.844.796 | 99% |
+| Toyota | 2016 | 90.000 | Diesel | Automatic | Individual | 174 | 3.100.000 | 2.207.816 | 29% |
+
+Os dez são automáticos acima de ₹900 mil, e nove deles são a diesel. Nossas hipóteses:
+
+- **Marca rara.** Land Rover tem 1 carro no treino e Lexus nenhum. No pipeline, as marcas com menos de
+  20 carros caem numa categoria única, `infrequent`, então a rede não sabe que são marcas de luxo e as
+  precifica como carros comuns de mesma potência. São justamente os dois piores erros.
+- **Ficha técnica ausente.** O BMW 2017 não tem potência registrada. O pipeline coloca a mediana do
+  treino, que é a potência de um carro popular, e a rede previu metade do preço real.
+- **Modelo além da potência.** Os Toyota e o Skoda subestimados devem ser modelos de topo da marca.
+  Como a coluna `name` foi descartada, a rede só vê a marca, e uma Toyota de 170 bhp pode ser de
+  vários modelos com preços bem diferentes.
+- **Depreciação do luxo.** O BMW 2012 com 96 mil km foi previsto pelo dobro. Carro de luxo mais velho
+  perde valor mais rápido, e com 29 BMWs no treino a rede viu poucos exemplos disso.
+
+**Permutation importance.** Para cada uma das 12 colunas originais, embaralhamos os valores no teste
+(5 vezes), passamos pelo pipeline e medimos quanto o MAE piora. Quanto maior a piora, mais a rede
+depende da coluna.
+
+| Coluna | Aumento do MAE (₹) |
+|--------|-------------------:|
+| `year` | 146.252 |
+| `max_power` | 75.796 |
+| `torque_nm` | 67.280 |
+| `brand` | 40.829 |
+| `engine` | 13.361 |
+| `mileage` | 10.671 |
+| `fuel` | 8.921 |
+| `km_driven` | 4.703 |
+| `owner` | 3.589 |
+| `transmission` | 3.170 |
+| `seats` | 2.681 |
+| `seller_type` | −307 |
+
+A ordem confirma a EDA. As duas colunas mais importantes são as duas mais associadas ao preço:
+`year` (Spearman ρ = 0,71) e `max_power` (ρ = 0,63). `brand`, a categórica de maior efeito na EDA,
+aparece em 4º. `torque_nm` vem logo depois de `max_power`, e as duas eram redundantes na EDA
+(ρ = 0,80). Embaralhar uma delas ainda prejudica porque cada carro fica com valores incoerentes entre
+si.
+
+Duas categóricas que separavam bem o preço na EDA quase não importam para a rede, e a EDA já explicava
+por quê. `transmission` (2,2× entre medianas) importa pouco porque boa parte do efeito é potência, que
+a rede já vê em `max_power`. `seller_type` (1,6×) não importa nada porque as revendas Trustmark só
+aceitam carros novos, e a rede já vê a idade em `year`.

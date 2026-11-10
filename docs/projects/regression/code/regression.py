@@ -228,3 +228,51 @@ ax.set(title="Figura 3. Resíduo vs. preço previsto (teste)", xlabel="preço pr
        ylabel="resíduo = real − previsto (₹)", xscale="log")
 ax.legend(frameon=False)
 salvar(fig, "fig03-residuos.png")
+
+# 6. Análise de erro (rede da seed 42, no teste)
+titulo("6. Análise de erro")
+erros = X_te.assign(real=real, previsto=previsto, erro=(real - previsto).abs())
+erros["erro %"] = 100 * erros["erro"] / erros["real"]
+erros["faixa de preço"] = pd.qcut(erros["real"], 5, labels=["1 (mais baratos)", "2", "3", "4", "5 (mais caros)"])
+
+
+def por_grupo(coluna):
+    return erros.groupby(coluna, observed=True).agg(
+        carros=("erro", "size"), MAE=("erro", "mean"), erro_pct_mediano=("erro %", "median")).round(1)
+
+
+for coluna in ["faixa de preço", "fuel", "transmission", "seller_type"]:
+    print(por_grupo(coluna), "\n")
+marcas = erros["brand"].value_counts().head(8).index
+print(por_grupo("brand").loc[marcas].sort_values("MAE"), "\n")
+print("faixas de preço (₹):", pd.qcut(erros["real"], 5).cat.categories.tolist())
+
+print("\n10 piores casos:")
+print(erros.nlargest(10, "erro")[["brand", "year", "km_driven", "fuel", "transmission", "seller_type",
+                                    "max_power", "real", "previsto", "erro %"]].round(0).to_string())
+print("carros dessas marcas no treino:", X_tr["brand"].value_counts().reindex(
+    erros.nlargest(10, "erro")["brand"].unique()).fillna(0).astype(int).to_dict())
+
+# Figura 4: MAE por faixa de preço
+faixas = por_grupo("faixa de preço")
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.bar(faixas.index.astype(str), faixas["MAE"], color=AZUL, label="MAE (₹)")
+ax.set(title="Figura 4. MAE da rede por faixa de preço real (teste)", xlabel="quintil do preço real",
+       ylabel="MAE (₹)")
+ax.legend(frameon=False)
+salvar(fig, "fig04-erro-faixa.png")
+
+# Permutation importance: embaralha uma coluna original por vez e mede quanto o MAE piora
+rng = np.random.default_rng(SEED)
+mae_base = metricas(y_te, prever(redes_finais[42], Z_te))["MAE"]
+importancia = {}
+for coluna in X_te.columns:
+    pioras = []
+    for _ in range(5):
+        X_emb = X_te.copy()
+        X_emb[coluna] = rng.permutation(X_emb[coluna].values)
+        pioras.append(metricas(y_te, prever(redes_finais[42], prep.transform(X_emb)))["MAE"] - mae_base)
+    importancia[coluna] = np.mean(pioras)
+importancia = pd.Series(importancia).sort_values(ascending=False)
+print("\npermutation importance (aumento do MAE em ₹, média de 5 embaralhamentos):")
+print(importancia.round(0))
