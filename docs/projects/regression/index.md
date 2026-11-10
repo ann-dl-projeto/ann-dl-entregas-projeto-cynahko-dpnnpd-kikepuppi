@@ -142,3 +142,55 @@ Na validação, a rede já fica à frente do Ridge:
 
 O MAE é 9,2% menor que o do Ridge, ainda abaixo dos 15% do critério. A seção 4 testa regularização e
 outras configurações para tentar fechar essa diferença.
+
+## 4. Regularização e hiperparâmetros
+
+Testamos duas técnicas de regularização, as duas para combater o overfitting visto na Figura 1:
+
+- **Dropout:** a cada lote do treino, zera ao acaso uma fração dos neurônios escondidos (10% ou 20%).
+  A rede não pode depender de um neurônio específico e precisa espalhar o que aprende. Na avaliação,
+  o dropout fica desligado.
+- **Weight decay:** soma à loss uma penalidade proporcional ao quadrado dos pesos (L2, `1e-4`). Pesos
+  grandes custam caro, e a rede fica mais suave.
+
+Todas as configurações treinam do zero, com a mesma seed, o mesmo treino da seção 3 (Adam, batch 64,
+early stopping com paciência 30) e a escolha feita só na validação.
+
+**Regularização contra a rede sem regularização** (rede 64-32, learning rate 0,001):
+
+| Regularização | MAE (₹) | Diferença |
+|---------------|--------:|----------:|
+| Nenhuma | 84.318 | |
+| Weight decay 1e-4 | 82.566 | −2,1% |
+| Dropout 0,1 + weight decay 1e-4 | 85.717 | +1,7% |
+| Dropout 0,1 | 88.102 | +4,5% |
+| Dropout 0,2 | 94.630 | +12,2% |
+
+O weight decay ajudou um pouco. O dropout piorou, e mais quanto maior a taxa. Com cerca de 1 parâmetro
+por linha, a rede já é pequena, e desligar neurônios tira a capacidade que ela tem para aprender.
+
+**Busca completa**, 12 configurações ordenadas pelo MAE na validação:
+
+| # | Camadas | Dropout | Weight decay | LR | Parâmetros | Melhor época | MAE (₹) | RMSE (₹) | R² |
+|--:|---------|--------:|-------------:|---:|-----------:|-------------:|--------:|---------:|---:|
+| 1 | 64-32 | 0,1 | 1e-4 | 0,003 | 4.737 | 197 | 80.782 | 164.196 | 0,896 |
+| 2 | 32-16 | 0 | 0 | 0,001 | 1.857 | 109 | 81.931 | 162.747 | 0,898 |
+| 3 | 64-32 | 0 | 1e-4 | 0,001 | 4.737 | 84 | 82.566 | 171.631 | 0,887 |
+| 4 | 64-32 | 0 | 0 | 0,001 | 4.737 | 84 | 84.318 | 178.861 | 0,877 |
+| 5 | 128-64 | 0 | 0 | 0,001 | 13.569 | 50 | 85.086 | 172.636 | 0,885 |
+| 6 | 64-32 | 0,1 | 1e-4 | 0,001 | 4.737 | 121 | 85.717 | 157.580 | 0,904 |
+| 7 | 64-32 | 0 | 0 | 0,003 | 4.737 | 32 | 86.919 | 184.323 | 0,869 |
+| 8 | 64-32 | 0,1 | 0 | 0,001 | 4.737 | 121 | 88.102 | 170.466 | 0,888 |
+| 9 | 128-64 | 0,2 | 1e-4 | 0,001 | 13.569 | 134 | 92.223 | 186.966 | 0,865 |
+| 10 | 128-64 | 0,1 | 0 | 0,001 | 13.569 | 53 | 93.832 | 177.093 | 0,879 |
+| 11 | 64-32 | 0,2 | 0 | 0,001 | 4.737 | 116 | 94.630 | 190.553 | 0,860 |
+| 12 | 32-16 | 0,1 | 1e-4 | 0,001 | 1.857 | 69 | 96.982 | 215.240 | 0,822 |
+
+**Configuração escolhida:** a #1, rede 64-32 com dropout 0,1, weight decay 1e-4 e learning rate 0,003.
+Ela teve MAE de ₹80.782 na validação, 13,0% abaixo do Ridge. O dropout que atrapalhava com LR 0,001
+funcionou com LR 0,003: o passo maior acelera o treino, e o ruído do dropout segura o overfitting,
+tanto que a melhor época foi a 197, contra 84 na rede sem regularização.
+
+As redes maiores (128-64) foram piores: com 13.569 parâmetros, cerca de 3 por linha, sobram pesos
+para decorar o treino. Entre as cinco primeiras, a diferença de MAE é de até 5%, e parte disso pode
+ser sorte da seed. Por isso a seção 5 mede a escolhida com 3 seeds.

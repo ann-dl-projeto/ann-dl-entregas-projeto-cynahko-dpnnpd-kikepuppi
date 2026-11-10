@@ -54,11 +54,13 @@ def metricas(y_log, prev_log):
             "R²": r2_score(real, prev)}
 
 
-def criar_rede(entradas, camadas=(64, 32)):
-    """MLP: cada camada escondida é Linear + ReLU; a saída é 1 neurônio linear (log do preço)."""
+def criar_rede(entradas, camadas=(64, 32), dropout=0.0):
+    """MLP: cada camada escondida é Linear + ReLU (+ Dropout); a saída é 1 neurônio linear (log do preço)."""
     blocos, anterior = [], entradas
     for largura in camadas:
         blocos += [nn.Linear(anterior, largura), nn.ReLU()]
+        if dropout > 0:
+            blocos.append(nn.Dropout(dropout))
         anterior = largura
     blocos.append(nn.Linear(anterior, 1))
     rede = nn.Sequential(*blocos)
@@ -69,11 +71,11 @@ def criar_rede(entradas, camadas=(64, 32)):
     return rede
 
 
-def treinar(rede, perda, lr=1e-3, batch=64, epocas=500, paciencia=30):
+def treinar(rede, perda, lr=1e-3, weight_decay=0.0, batch=64, epocas=500, paciencia=30):
     """Adam em mini-batches com early stopping na validação; no fim, volta aos melhores pesos."""
     X, Y = tensor(Z_tr), tensor(y_tr).view(-1, 1)
     X_v, Y_v = tensor(Z_val), tensor(y_val).view(-1, 1)
-    otimizador = torch.optim.Adam(rede.parameters(), lr=lr)
+    otimizador = torch.optim.Adam(rede.parameters(), lr=lr, weight_decay=weight_decay)
     historico = {"treino": [], "validação": []}
     melhor, melhores_pesos, sem_melhora = float("inf"), None, 0
     for epoca in range(epocas):
@@ -160,3 +162,32 @@ ax.axvline(melhor_epoca, color="gray", ls="--", label=f"melhor época ({melhor_e
 ax.set(title="Figura 1. Loss Huber por época", xlabel="época", ylabel="loss Huber (log do preço)", yscale="log")
 ax.legend(frameon=False)
 salvar(fig, "fig01-curvas.png")
+
+# 4. Regularização e busca: cada configuração treina do zero com a mesma seed e é medida na validação
+titulo("4. Regularização e hiperparâmetros (validação)")
+configuracoes = [
+    # camadas, dropout, weight decay, learning rate
+    ((64, 32), 0.0, 0, 1e-3),  # sem regularização (a rede da seção 3)
+    ((64, 32), 0.1, 0, 1e-3),
+    ((64, 32), 0.2, 0, 1e-3),
+    ((64, 32), 0.0, 1e-4, 1e-3),
+    ((64, 32), 0.1, 1e-4, 1e-3),
+    ((64, 32), 0.1, 1e-4, 3e-3),
+    ((64, 32), 0.0, 0, 3e-3),
+    ((32, 16), 0.0, 0, 1e-3),
+    ((32, 16), 0.1, 1e-4, 1e-3),
+    ((128, 64), 0.0, 0, 1e-3),
+    ((128, 64), 0.1, 0, 1e-3),
+    ((128, 64), 0.2, 1e-4, 1e-3),
+]
+busca = []
+for camadas, dropout, wd, lr in configuracoes:
+    torch.manual_seed(SEED)
+    modelo = criar_rede(Z_tr.shape[1], camadas, dropout)
+    hist = treinar(modelo, perda, lr=lr, weight_decay=wd)
+    busca.append({"camadas": "-".join(map(str, camadas)), "dropout": dropout, "weight decay": wd, "lr": lr,
+                  "parâmetros": sum(p.numel() for p in modelo.parameters()),
+                  "melhor época": int(np.argmin(hist["validação"])) + 1,
+                  **metricas(y_val, prever(modelo, Z_val))})
+busca = pd.DataFrame(busca).sort_values("MAE").reset_index(drop=True)
+print(busca.round({"MAE": 0, "RMSE": 0, "R²": 3}).to_string())
