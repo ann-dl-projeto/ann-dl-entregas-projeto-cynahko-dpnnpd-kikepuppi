@@ -191,3 +191,40 @@ for camadas, dropout, wd, lr in configuracoes:
                   **metricas(y_val, prever(modelo, Z_val))})
 busca = pd.DataFrame(busca).sort_values("MAE").reset_index(drop=True)
 print(busca.round({"MAE": 0, "RMSE": 0, "R²": 3}).to_string())
+
+# 5. Teste, usado uma única vez: baselines e a configuração escolhida (#1 da busca) em 3 seeds
+titulo("5. Teste")
+teste = {nome: metricas(y_te, modelo.predict(Z_te)) for nome, modelo in baselines.items()}
+
+redes_finais = {}
+for seed in [42, 43, 44]:
+    torch.manual_seed(seed)
+    redes_finais[seed] = criar_rede(Z_tr.shape[1], (64, 32), dropout=0.1)
+    treinar(redes_finais[seed], perda, lr=3e-3, weight_decay=1e-4)
+por_seed = pd.DataFrame({seed: metricas(y_te, prever(r, Z_te)) for seed, r in redes_finais.items()}).T
+print("rede, por seed:\n", por_seed.round(3))
+teste["Rede (média de 3 seeds)"] = por_seed.mean().to_dict()
+print(pd.DataFrame(teste).T.round(3))
+print("desvio padrão da rede:", por_seed.std().round(3).to_dict())
+
+reducao = 1 - por_seed["MAE"].mean() / teste["Ridge"]["MAE"]
+print(f"MAE da rede vs. Ridge: {100 * reducao:.1f}% menor | critério (>= 15%):", "atingido" if reducao >= 0.15 else "não atingido")
+
+# Figuras 2 e 3: predito vs. real e resíduo vs. predito (rede da seed 42, em ₹)
+real, previsto = np.exp(y_te), np.exp(prever(redes_finais[42], Z_te))
+fig, ax = plt.subplots(figsize=(5.5, 5))
+ax.scatter(real, previsto, s=8, alpha=0.4, color=AZUL, label="carros do teste")
+limites = [real.min(), real.max()]
+ax.plot(limites, limites, color=LARANJA, label="previsão perfeita")
+ax.set(title="Figura 2. Preço previsto vs. real (teste)", xlabel="preço real (₹)", ylabel="preço previsto (₹)",
+       xscale="log", yscale="log")
+ax.legend(frameon=False)
+salvar(fig, "fig02-previsto-real.png")
+
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.scatter(previsto, real - previsto, s=8, alpha=0.4, color=AZUL, label="carros do teste")
+ax.axhline(0, color=LARANJA, label="resíduo zero")
+ax.set(title="Figura 3. Resíduo vs. preço previsto (teste)", xlabel="preço previsto (₹)",
+       ylabel="resíduo = real − previsto (₹)", xscale="log")
+ax.legend(frameon=False)
+salvar(fig, "fig03-residuos.png")

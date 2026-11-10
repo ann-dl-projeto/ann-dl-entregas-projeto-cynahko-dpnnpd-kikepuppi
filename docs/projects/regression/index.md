@@ -194,3 +194,43 @@ tanto que a melhor época foi a 197, contra 84 na rede sem regularização.
 As redes maiores (128-64) foram piores: com 13.569 parâmetros, cerca de 3 por linha, sobram pesos
 para decorar o treino. Entre as cinco primeiras, a diferença de MAE é de até 5%, e parte disso pode
 ser sorte da seed. Por isso a seção 5 mede a escolhida com 3 seeds.
+
+## 5. Avaliação no teste
+
+Retreinamos a configuração escolhida (64-32, dropout 0,1, weight decay 1e-4, LR 0,003) do mesmo jeito
+da busca: no treino, com early stopping na validação. Fizemos isso com as seeds 42, 43 e 44. Os
+baselines são os mesmos da seção 1. O teste foi usado só aqui, uma vez, e nenhuma escolha das seções
+anteriores dependeu dele.
+
+| Seed | MAE (₹) | RMSE (₹) | R² |
+|-----:|--------:|---------:|---:|
+| 42 | 86.076 | 175.774 | 0,875 |
+| 43 | 83.991 | 174.414 | 0,877 |
+| 44 | 85.108 | 165.041 | 0,889 |
+
+| Modelo | MAE (₹) | RMSE (₹) | R² |
+|--------|--------:|---------:|---:|
+| Dummy (mediana) | 277.696 | 509.863 | −0,055 |
+| Ridge | 95.567 | 195.230 | 0,845 |
+| **Rede** (média ± desvio, 3 seeds) | **85.058 ± 1.043** | **171.743 ± 5.844** | **0,880 ± 0,008** |
+
+**Critério de sucesso: não atingido.** O MAE da rede é 11,0% menor que o do Ridge, e o critério pedia
+pelo menos 15%. A rede é melhor nas três métricas e o resultado é estável: o desvio entre seeds é de
+₹1.043, perto de 1% do MAE. Mas o ganho ficou abaixo do que fixamos antes de treinar.
+
+Na validação, a configuração escolhida estava 13,0% abaixo do Ridge. A queda para 11,0% no teste é
+esperada: escolhemos a melhor entre 12 configurações olhando a validação, e isso deixa o número da
+validação um pouco otimista.
+
+![Figura 2](figures/fig02-previsto-real.png)
+
+Na Figura 2, os pontos seguem a diagonal em toda a faixa de preço, de ₹30 mil a ₹6 milhões. A
+dispersão em torno dela é parecida em escala log, ou seja, o erro *relativo* é parecido para carros
+baratos e caros.
+
+![Figura 3](figures/fig03-residuos.png)
+
+A Figura 3 mostra o mesmo erro em rúpias. Até ₹1 milhão, os resíduos ficam concentrados perto de
+zero. Acima disso, eles se abrem: um erro de 20% num carro de ₹20 lakh vale ₹4 lakh. Os maiores erros
+são positivos, entre ₹1 e ₹3 milhões previstos, e são carros que a rede subestimou, com um caso real
+quase ₹3 milhões acima da previsão. São esses poucos carros caros que puxam o MAE e o RMSE.
