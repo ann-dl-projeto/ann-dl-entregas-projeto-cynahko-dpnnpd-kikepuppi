@@ -55,3 +55,21 @@ ler para quem compra ou vende.
 
 **Critério de sucesso**, fixado antes de treinar: a rede precisa ter MAE no teste pelo menos 15%
 menor que o do melhor baseline.
+
+## 1. Baselines
+
+Treinamos dois modelos simples sobre o `log(preço)` e avaliamos na validação, depois de voltar à
+escala em ₹ com `exp`:
+
+- **Dummy (mediana):** prevê sempre a mediana do treino. É o piso: qualquer modelo útil tem que
+  ficar abaixo dele.
+- **Ridge:** regressão linear com regularização L2 (`alpha=1`).
+
+| Modelo | MAE (₹) | RMSE (₹) | R² |
+|--------|--------:|---------:|---:|
+| Dummy (mediana) | 278.744 | 523.161 | −0,054 |
+| Ridge | 92.824 | 192.640 | 0,857 |
+
+O Ridge é o melhor baseline. Erra em média ₹92.824, um terço do erro da mediana, e explica 85,7%
+da variância do preço. Pelo critério de sucesso, a rede precisa ficar pelo menos 15% abaixo do MAE
+do Ridge no teste.
