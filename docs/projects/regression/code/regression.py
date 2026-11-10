@@ -8,10 +8,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, r2_score, root_mean_squared_error
 from sklearn.model_selection import train_test_split
+from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eda" / "code"))
 from preprocessing import SEED, build_pipeline, load_clean, split
@@ -31,6 +33,21 @@ def metricas(y_log, prev_log):
     return {"MAE": mean_absolute_error(real, prev),
             "RMSE": root_mean_squared_error(real, prev),
             "R²": r2_score(real, prev)}
+
+
+def criar_rede(entradas, camadas=(64, 32)):
+    """MLP: cada camada escondida é Linear + ReLU; a saída é 1 neurônio linear (log do preço)."""
+    blocos, anterior = [], entradas
+    for largura in camadas:
+        blocos += [nn.Linear(anterior, largura), nn.ReLU()]
+        anterior = largura
+    blocos.append(nn.Linear(anterior, 1))
+    rede = nn.Sequential(*blocos)
+    for camada in rede:
+        if isinstance(camada, nn.Linear):
+            nn.init.kaiming_normal_(camada.weight, nonlinearity="relu")  # inicialização He
+            nn.init.zeros_(camada.bias)
+    return rede
 
 
 # 0. Ponto de partida: mesmo split da EDA e validação tirada do treino
@@ -53,3 +70,18 @@ for nome, modelo in baselines.items():
     modelo.fit(Z_tr, y_tr)
     resultados[nome] = metricas(y_val, modelo.predict(Z_val))
 print(pd.DataFrame(resultados).T.round(3))
+
+# 2. A rede: arquitetura, número de parâmetros e escolha da loss
+titulo("2. A rede")
+torch.manual_seed(SEED)
+rede = criar_rede(Z_tr.shape[1])
+print(rede)
+parametros = sum(p.numel() for p in rede.parameters())
+print("parâmetros:", parametros, "| linhas de treino:", len(Z_tr),
+      "| parâmetros por linha:", round(parametros / len(Z_tr), 2))
+
+# Resíduos do Ridge no treino (em log): mostram a cauda que justifica a Huber
+residuo = (y_tr - baselines["Ridge"].predict(Z_tr)).abs()
+print("|resíduo| do Ridge, quantis 50/95/max:", residuo.quantile([.5, .95, 1]).round(2).tolist())
+print("% de resíduos acima de 0,5:", round(100 * (residuo > 0.5).mean(), 1))
+perda = nn.HuberLoss(delta=0.5)
